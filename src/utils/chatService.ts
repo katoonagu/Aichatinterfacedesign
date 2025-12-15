@@ -1,0 +1,95 @@
+import { Message } from '../types';
+import { projectId, publicAnonKey } from './supabase/info';
+
+const API_BASE = `https://${projectId}.supabase.co/functions/v1/make-server-a1078296`;
+
+export const chatApi = {
+  async getHistory(sessionId: string): Promise<Message[]> {
+    try {
+      const res = await fetch(`${API_BASE}/chat?sessionId=${sessionId}`, {
+        headers: {
+          'Authorization': `Bearer ${publicAnonKey}`
+        }
+      });
+      if (!res.ok) throw new Error(`Failed to fetch: ${res.status} ${res.statusText}`);
+      const data = await res.json();
+      return data.messages.map((m: any) => ({
+        ...m,
+        timestamp: new Date(m.timestamp),
+        // Ensure sources are preserved if they exist
+        sources: m.sources
+      }));
+    } catch (e) {
+      console.error("Failed to fetch history", e);
+      return [];
+    }
+  },
+
+  async saveMessage(sessionId: string, message: Message): Promise<void> {
+    try {
+      // Create a copy of the message to sanitize if needed
+      const msgToSave = {
+        ...message,
+        // Ensure timestamp is a string/ISO for consistency if logic differs
+        timestamp: message.timestamp
+      };
+
+      await fetch(`${API_BASE}/chat`, {
+        method: 'POST',
+        headers: { 
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${publicAnonKey}`
+        },
+        body: JSON.stringify({ sessionId, message: msgToSave })
+      });
+    } catch (e) {
+      console.error("Failed to save message", e);
+    }
+  },
+
+  async clearHistory(sessionId: string): Promise<void> {
+    try {
+        await fetch(`${API_BASE}/chat?sessionId=${sessionId}`, { 
+          method: 'DELETE',
+          headers: {
+            'Authorization': `Bearer ${publicAnonKey}`
+          }
+        });
+    } catch (e) {
+        console.error("Failed to clear history", e);
+    }
+  },
+
+  async sendToN8n(prompt: string, sessionId: string): Promise<string> {
+    // We now use our own proxy to avoid CORS issues
+    const PROXY_URL = `${API_BASE}/n8n-proxy`;
+    
+    try {
+      const res = await fetch(PROXY_URL, {
+        method: 'POST',
+        headers: { 
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${publicAnonKey}`
+        },
+        body: JSON.stringify({ 
+          prompt, 
+          sessionId, 
+          timestamp: new Date().toISOString()
+        })
+      });
+
+      if (!res.ok) {
+        const errText = await res.text();
+        throw new Error(`Proxy Error (${res.status}): ${errText}`);
+      }
+
+      const data = await res.json();
+      console.log("N8N Response via Proxy:", data);
+
+      return data.output || data.text || data.response || data.answer || data.content || JSON.stringify(data);
+    } catch (e) {
+      console.error("Failed to send to n8n", e);
+      return `Ошибка соединения с AI: ${(e as Error).message}. Проверьте, активен ли сценарий в n8n (webhook-test требует открытой вкладки).`;
+    }
+  }
+};
