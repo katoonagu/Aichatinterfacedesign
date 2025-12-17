@@ -28,17 +28,32 @@ export default function App() {
   const [activeDomain, setActiveDomain] = useState<Domain>('transformers');
   const [messages, setMessages] = useState<Message[]>([]);
   const [isLoading, setIsLoading] = useState(false);
+  // Persistent User ID for anonymous session separation
+  const [userId] = useState(() => {
+    if (typeof window !== 'undefined') {
+      const stored = localStorage.getItem('app_user_id');
+      if (stored) return stored;
+      const newId = crypto.randomUUID();
+      localStorage.setItem('app_user_id', newId);
+      return newId;
+    }
+    return 'default-user';
+  });
+
+  // Helper to construct unique session ID per user per domain
+  const getSessionId = (domain: Domain) => `${userId}-${domain}`;
 
   // Load chat history from Supabase when domain changes
   useEffect(() => {
     const loadHistory = async () => {
       // Don't show loading on initial empty state to avoid flicker if it's fast
       // but here we want to show we are fetching
-      const history = await chatApi.getHistory(activeDomain);
+      const uniqueSessionId = getSessionId(activeDomain);
+      const history = await chatApi.getHistory(uniqueSessionId);
       setMessages(history);
     };
     loadHistory();
-  }, [activeDomain]);
+  }, [activeDomain, userId]);
 
   // Handle mobile detection
   useEffect(() => {
@@ -93,7 +108,8 @@ export default function App() {
     setIsLoading(true);
 
     // Save User Message to Supabase
-    await chatApi.saveMessage(activeDomain, userMsg);
+    const uniqueSessionId = getSessionId(activeDomain);
+    await chatApi.saveMessage(uniqueSessionId, userMsg);
 
     // Add "Typing" placeholder
     const aiTypingId = (Date.now() + 1).toString();
@@ -108,7 +124,8 @@ export default function App() {
 
     try {
       // Call n8n Webhook
-      const aiText = await chatApi.sendToN8n(content, activeDomain);
+      const uniqueSessionId = getSessionId(activeDomain);
+      const aiText = await chatApi.sendToN8n(content, uniqueSessionId);
 
       setMessages(prev => {
         // Remove typing msg
@@ -124,7 +141,8 @@ export default function App() {
         };
         
         // Save AI Message to Supabase (fire and forget)
-        chatApi.saveMessage(activeDomain, aiResponse);
+        const uniqueSessionId = getSessionId(activeDomain);
+        chatApi.saveMessage(uniqueSessionId, aiResponse);
         
         return [...filtered, aiResponse];
       });

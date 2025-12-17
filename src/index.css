@@ -650,8 +650,8 @@
     height: 100vh;
   }
 
-  .max-h-\[200px\] {
-    max-height: 200px;
+  .max-h-\[150px\] {
+    max-height: 150px;
   }
 
   .min-h-0 {
@@ -1191,12 +1191,12 @@
     padding-top: calc(var(--spacing) * 4);
   }
 
-  .pb-4 {
-    padding-bottom: calc(var(--spacing) * 4);
+  .pb-3 {
+    padding-bottom: calc(var(--spacing) * 3);
   }
 
-  .pb-6 {
-    padding-bottom: calc(var(--spacing) * 6);
+  .pb-4 {
+    padding-bottom: calc(var(--spacing) * 4);
   }
 
   .text-center {

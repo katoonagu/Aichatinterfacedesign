@@ -36,7 +36,7 @@ export function InputArea({ onSendMessage, isLoading }: InputAreaProps) {
   }, [content]);
 
   return (
-    <div className="w-full max-w-4xl mx-auto px-4 pb-6 pt-2">
+    <div className="w-full max-w-4xl mx-auto px-4 pb-3 pt-2">
       <div className={cn(
         "flex items-end gap-2 p-2 rounded-xl border bg-background shadow-sm transition-all duration-300",
         "focus-within:shadow-md focus-within:border-primary/40 focus-within:ring-1 focus-within:ring-primary/20"
@@ -48,10 +48,11 @@ export function InputArea({ onSendMessage, isLoading }: InputAreaProps) {
         <textarea
           ref={textareaRef}
           value={content}
+          rows={1}
           onChange={(e) => setContent(e.target.value)}
           onKeyDown={handleKeyDown}
-          placeholder="Задайте вопрос по документации, оборудованию или регламентам..."
-          className="flex-1 min-h-[44px] py-2.5 bg-transparent border-0 focus:ring-0 resize-none text-base max-h-[200px] scrollbar-hide placeholder:text-muted-foreground/60"
+          placeholder="Ваш вопрос..."
+          className="flex-1 min-h-[44px] py-2.5 bg-transparent border-0 focus:ring-0 resize-none text-base max-h-[150px] scrollbar-hide placeholder:text-muted-foreground/60 leading-relaxed"
           style={{ height: '44px' }}
         />
 
@@ -74,8 +75,8 @@ export function InputArea({ onSendMessage, isLoading }: InputAreaProps) {
         </Button>
       </div>
       <div className="text-center mt-2">
-         <p className="text-[10px] text-muted-foreground/60">
-           AI-ассистент может допускать ошибки. Проверяйте важную информацию в официальной документации.
+         <p className="text-[10px] text-muted-foreground/60 truncate px-4">
+           AI может ошибаться. Проверяйте факты.
          </p>
       </div>
     </div>
