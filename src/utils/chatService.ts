@@ -4,6 +4,25 @@ import { projectId, publicAnonKey } from './supabase/info';
 const API_BASE = `https://${projectId}.supabase.co/functions/v1/make-server-a1078296`;
 
 export const chatApi = {
+  async getSessions(): Promise<ChatSession[]> {
+    try {
+      const res = await fetch(`${API_BASE}/sessions`, {
+        headers: {
+          'Authorization': `Bearer ${publicAnonKey}`
+        }
+      });
+      if (!res.ok) throw new Error(`Failed to fetch sessions: ${res.status}`);
+      const data = await res.json();
+      return data.sessions.map((s: any) => ({
+        ...s,
+        date: new Date(s.date)
+      }));
+    } catch (e) {
+      console.error("Failed to fetch sessions", e);
+      return [];
+    }
+  },
+
   async getHistory(sessionId: string): Promise<Message[]> {
     try {
       const res = await fetch(`${API_BASE}/chat?sessionId=${sessionId}`, {
@@ -61,15 +80,16 @@ export const chatApi = {
   },
 
   async sendToN8n(prompt: string, sessionId: string): Promise<string> {
-    // We now use our own proxy to avoid CORS issues
-    const PROXY_URL = `${API_BASE}/n8n-proxy`;
+    // Direct connection to N8N Test Webhook (Bypassing Proxy)
+    // Note: This often requires the N8N editor UI to be open for the webhook to trigger
+    const WEBHOOK_URL = "https://loderi723.app.n8n.cloud/webhook-test/chat";
     
     try {
-      const res = await fetch(PROXY_URL, {
+      const res = await fetch(WEBHOOK_URL, {
         method: 'POST',
         headers: { 
           'Content-Type': 'application/json',
-          'Authorization': `Bearer ${publicAnonKey}`
+          // No Authorization header needed for public N8N webhooks usually
         },
         body: JSON.stringify({ 
           prompt, 
@@ -80,11 +100,11 @@ export const chatApi = {
 
       if (!res.ok) {
         const errText = await res.text();
-        throw new Error(`Proxy Error (${res.status}): ${errText}`);
+        throw new Error(`N8N Error (${res.status}): ${errText}`);
       }
 
       const data = await res.json();
-      console.log("N8N Response via Proxy:", data);
+      console.log("N8N Response:", data);
 
       return data.output || data.text || data.response || data.answer || data.content || JSON.stringify(data);
     } catch (e) {

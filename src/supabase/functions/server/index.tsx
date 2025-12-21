@@ -33,31 +33,72 @@ app.get("/make-server-a1078296/health", (c) => {
 
 // --- Chat History (Supabase DB: 'Message' table) ---
 
+// GET Sessions (List of unique conversations)
+app.get("/make-server-a1078296/sessions", async (c) => {
+  try {
+    // Fetch all messages to group them by session (not efficient for production, but works for prototype without custom SQL views)
+    // We only need session_id and message content to generate titles/previews
+    const { data, error } = await supabase
+      .from("n8n_chat_histories")
+      .select("session_id, message, id")
+      .order("id", { ascending: true });
+
+    if (error) throw error;
+
+    // Group by session_id
+    const sessionsMap = new Map();
+    
+    (data || []).forEach((row: any) => {
+      const sId = row.session_id;
+      if (!sessionsMap.has(sId)) {
+        // Found a new session
+        const msgContent = row.message?.content || "";
+        const title = msgContent.slice(0, 30) + (msgContent.length > 30 ? "..." : "");
+        
+        sessionsMap.set(sId, {
+          id: sId,
+          title: title || "Новый чат",
+          date: new Date().toISOString(), // We don't have real date in this table, using placeholder or could be improved later
+          preview: msgContent.slice(0, 50),
+          messages: [] // Placeholder
+        });
+      }
+    });
+
+    const sessions = Array.from(sessionsMap.values());
+    return c.json({ sessions });
+  } catch (err) {
+    console.error("Error fetching sessions:", err);
+    return c.json({ sessions: [], error: (err as Error).message }, 500);
+  }
+});
+
 // GET History
 app.get("/make-server-a1078296/chat", async (c) => {
   const sessionId = c.req.query("sessionId") || "default";
   
   try {
+    // Map DB fields from n8n_chat_histories
+    // DB: id, session_id, message: { type: 'human'|'ai', content: string }
     const { data, error } = await supabase
-      .from("Message")
+      .from("n8n_chat_histories")
       .select("*")
       .eq("session_id", sessionId)
-      .order("created_at", { ascending: true });
+      .order("id", { ascending: true }); // Using 'id' for ordering as created_at might be missing
 
     if (error) {
       throw error;
     }
 
-    // Map DB fields to frontend format
-    // DB: id, role, content, created_at, session_id
-    // Frontend: id, role, content, timestamp, sources?
-    const messages = (data || []).map((msg: any) => ({
-      id: msg.id,
-      role: msg.role,
-      content: msg.content,
-      timestamp: msg.created_at, // string ISO from DB is fine, frontend parses it
-      sources: [] // If you add a jsonb column 'sources' later, map it here: msg.sources
-    }));
+    const messages = (data || []).map((row: any) => {
+      const msg = row.message || {};
+      return {
+        id: row.id.toString(),
+        role: msg.type === "human" ? "user" : "ai",
+        content: msg.content || "",
+        timestamp: new Date().toISOString(), // Timestamp is not standard in n8n table, using now as fallback
+      };
+    });
 
     return c.json({ messages });
   } catch (err) {
@@ -79,14 +120,16 @@ app.post("/make-server-a1078296/chat", async (c) => {
       return c.json({ error: "No message provided" }, 400);
     }
 
-    // Insert into 'Message' table
+    // Insert into 'n8n_chat_histories' table
+    // Format: session_id, message: { type: 'human'|'ai', content: ... }
     const { error } = await supabase
-      .from("Message")
+      .from("n8n_chat_histories")
       .insert({
-        session_id: sessionId, // Ensure this column is Text if using 'transformers', or UUID if using valid UUIDs
-        role: message.role,
-        content: message.content,
-        // created_at: let DB default to now() or use message.timestamp if critical
+        session_id: sessionId,
+        message: {
+          type: message.role === "user" ? "human" : "ai",
+          content: message.content,
+        }
       });
 
     if (error) {
@@ -105,7 +148,7 @@ app.delete("/make-server-a1078296/chat", async (c) => {
   const sessionId = c.req.query("sessionId") || "default";
   
   const { error } = await supabase
-    .from("Message")
+    .from("n8n_chat_histories")
     .delete()
     .eq("session_id", sessionId);
 

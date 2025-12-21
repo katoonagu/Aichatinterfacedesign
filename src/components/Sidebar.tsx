@@ -40,13 +40,15 @@ export function Sidebar({
   sessions,
   onSessionSelect,
   isMobile,
-  onCloseMobile
-}: SidebarProps) {
+  onCloseMobile,
+  onNewChat
+}: SidebarProps & { onNewChat: () => void }) {
   const sidebarContent = (
     <div className="p-4 flex flex-col gap-4 h-full w-[280px]">
         {/* Header / New Chat */}
         <Button 
           variant="outline" 
+          onClick={onNewChat}
           className="w-full justify-start gap-2 border-primary/20 hover:border-primary/50 hover:bg-primary/5 text-primary transition-all font-medium h-10 shadow-sm"
         >
           <Plus className="w-4 h-4" />

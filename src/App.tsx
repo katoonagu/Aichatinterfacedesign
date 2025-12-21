@@ -28,6 +28,8 @@ export default function App() {
   const [activeDomain, setActiveDomain] = useState<Domain>('transformers');
   const [messages, setMessages] = useState<Message[]>([]);
   const [isLoading, setIsLoading] = useState(false);
+  const [sessions, setSessions] = useState<ChatSession[]>([]);
+  
   // Persistent User ID for anonymous session separation
   const [userId] = useState(() => {
     if (typeof window !== 'undefined') {
@@ -40,20 +42,39 @@ export default function App() {
     return 'default-user';
   });
 
-  // Helper to construct unique session ID per user per domain
-  const getSessionId = (domain: Domain) => `${userId}-${domain}`;
+  // Current session ID (defaults to a new one on load or specific one selected)
+  // We use a state for this now instead of deriving from domain only
+  const [currentSessionId, setCurrentSessionId] = useState<string>(() => `${userId}-transformers-${Date.now()}`);
 
-  // Load chat history from Supabase when domain changes
+  // Fetch list of sessions on mount and when domain/user changes (conceptually could filter by domain)
+  useEffect(() => {
+    const loadSessions = async () => {
+       const fetchedSessions = await chatApi.getSessions();
+       // Optionally filter by domain if your logic requires it, for now show all
+       setSessions(fetchedSessions);
+    };
+    loadSessions();
+  }, [userId, activeDomain]); // reloading on domain change if we want to filter later
+
+  // Load chat history when currentSessionId changes
   useEffect(() => {
     const loadHistory = async () => {
-      // Don't show loading on initial empty state to avoid flicker if it's fast
-      // but here we want to show we are fetching
-      const uniqueSessionId = getSessionId(activeDomain);
-      const history = await chatApi.getHistory(uniqueSessionId);
-      setMessages(history);
+      // If it's a new generated session ID that doesn't exist in backend yet, messages are empty
+      // But if we selected an old session, fetch it.
+      const existingSession = sessions.find(s => s.id === currentSessionId);
+      
+      if (existingSession) {
+          const history = await chatApi.getHistory(currentSessionId);
+          setMessages(history);
+      } else {
+          // New session or not found in list yet
+          // Check if it really has messages (e.g. reload page on active session)
+          const history = await chatApi.getHistory(currentSessionId);
+          setMessages(history);
+      }
     };
     loadHistory();
-  }, [activeDomain, userId]);
+  }, [currentSessionId, sessions]); // Add sessions dependency to retry if list loads later
 
   // Handle mobile detection
   useEffect(() => {
@@ -90,9 +111,15 @@ export default function App() {
   const toggleTheme = () => setIsDarkMode(!isDarkMode);
 
   const handleSessionSelect = (sessionId: string) => {
-    // In a real app, this would switch the 'activeDomain' or load a specific conversation ID
-    // For now, we'll just log it as we are using activeDomain for history
-    console.log("Selected session:", sessionId);
+    setCurrentSessionId(sessionId);
+    // Don't log, state change will trigger effect
+  };
+
+  const handleNewChat = () => {
+    // Generate new ID
+    const newId = `${userId}-${activeDomain}-${Date.now()}`;
+    setCurrentSessionId(newId);
+    setMessages([]); // Clear visual messages immediately
   };
 
   const handleSendMessage = async (content: string) => {
@@ -108,8 +135,18 @@ export default function App() {
     setIsLoading(true);
 
     // Save User Message to Supabase
-    const uniqueSessionId = getSessionId(activeDomain);
-    await chatApi.saveMessage(uniqueSessionId, userMsg);
+    // Use currentSessionId state
+    await chatApi.saveMessage(currentSessionId, userMsg);
+    
+    // Refresh session list if this is the first message of a new session
+    if (messages.length === 0) {
+        // A bit of a hack: wait a sec for DB to consistency or just locally append
+        // For now, let's just re-fetch in background
+        setTimeout(async () => {
+            const fetched = await chatApi.getSessions();
+            setSessions(fetched);
+        }, 1000);
+    }
 
     // Add "Typing" placeholder
     const aiTypingId = (Date.now() + 1).toString();
@@ -124,8 +161,7 @@ export default function App() {
 
     try {
       // Call n8n Webhook
-      const uniqueSessionId = getSessionId(activeDomain);
-      const aiText = await chatApi.sendToN8n(content, uniqueSessionId);
+      const aiText = await chatApi.sendToN8n(content, currentSessionId);
 
       setMessages(prev => {
         // Remove typing msg
@@ -141,8 +177,7 @@ export default function App() {
         };
         
         // Save AI Message to Supabase (fire and forget)
-        const uniqueSessionId = getSessionId(activeDomain);
-        chatApi.saveMessage(uniqueSessionId, aiResponse);
+        chatApi.saveMessage(currentSessionId, aiResponse);
         
         return [...filtered, aiResponse];
       });
@@ -166,10 +201,15 @@ export default function App() {
         activeDomain={activeDomain}
         onDomainChange={(domain) => {
           setActiveDomain(domain);
+          // When domain changes, we might want to start a new chat or filter sessions
+          // For now, let's just start a new chat in that domain context
+          const newId = `${userId}-${domain}-${Date.now()}`;
+          setCurrentSessionId(newId);
           setMessages([]);
         }}
-        sessions={MOCK_SESSIONS}
+        sessions={sessions}
         onSessionSelect={handleSessionSelect}
+        onNewChat={handleNewChat}
         isMobile={isMobile}
         onCloseMobile={() => setIsSidebarOpen(false)}
       />
@@ -251,7 +291,7 @@ function generateMockResponse(query: string): string {
   if (query.toLowerCase().includes('чертеж') || query.toLowerCase().includes('схема') || query.toLowerCase().includes('фото')) {
      return `### Техническая документация и чертежи
 
-По вашему запросу найдены следующие материалы из базы данных технической документации:
+��о вашему запросу найдены следующие материалы из базы данных технической документации:
 
 **1. Общий вид трансформаторной подстанции (КТП)**
 ![Общий вид КТП](https://s3.ru1.storage.beget.cloud/de1fd0c5e608-mastra/test1/05f2e685-ed36-4bdb-84c4-9260588acbd6.jpg)
