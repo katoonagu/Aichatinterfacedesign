@@ -1,4 +1,4 @@
-import { Message } from '../types';
+import { Message, ChatSession } from '../types';
 import { projectId, publicAnonKey } from './supabase/info';
 
 const API_BASE = `https://${projectId}.supabase.co/functions/v1/make-server-a1078296`;
@@ -80,16 +80,15 @@ export const chatApi = {
   },
 
   async sendToN8n(prompt: string, sessionId: string): Promise<string> {
-    // Direct connection to N8N Test Webhook (Bypassing Proxy)
-    // Note: This often requires the N8N editor UI to be open for the webhook to trigger
-    const WEBHOOK_URL = "https://loderi723.app.n8n.cloud/webhook-test/chat";
+    // Using Proxy to avoid CORS issues
+    const PROXY_URL = `${API_BASE}/n8n-proxy`;
     
     try {
-      const res = await fetch(WEBHOOK_URL, {
+      const res = await fetch(PROXY_URL, {
         method: 'POST',
         headers: { 
           'Content-Type': 'application/json',
-          // No Authorization header needed for public N8N webhooks usually
+          'Authorization': `Bearer ${publicAnonKey}`
         },
         body: JSON.stringify({ 
           prompt, 
@@ -100,7 +99,7 @@ export const chatApi = {
 
       if (!res.ok) {
         const errText = await res.text();
-        throw new Error(`N8N Error (${res.status}): ${errText}`);
+        throw new Error(`Proxy/N8N Error (${res.status}): ${errText}`);
       }
 
       const data = await res.json();
