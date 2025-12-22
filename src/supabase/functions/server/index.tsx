@@ -164,8 +164,8 @@ app.delete("/make-server-a1078296/chat", async (c) => {
 app.post("/make-server-a1078296/n8n-proxy", async (c) => {
   try {
     const body = await c.req.json();
-    // Use the Test URL as requested for debugging
-    const N8N_URL = "https://loderi723.app.n8n.cloud/webhook-test/chat";
+    // Use the Production URL provided by the user
+    const N8N_URL = "https://loderi723.app.n8n.cloud/webhook/chat";
     
     const response = await fetch(N8N_URL, {
       method: "POST",
