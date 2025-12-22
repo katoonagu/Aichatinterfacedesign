@@ -1,7 +1,9 @@
 import React, { useState, useEffect } from 'react';
+import { AnimatePresence } from 'motion/react';
 import { Sidebar } from './components/Sidebar';
 import { ChatArea } from './components/ChatArea';
 import { InputArea } from './components/InputArea';
+import { InitialLoader } from './components/InitialLoader';
 import { Message, ChatSession, Domain } from './types';
 import { PanelLeftClose, PanelLeftOpen } from 'lucide-react';
 import { Button } from './components/ui/button';
@@ -29,6 +31,15 @@ export default function App() {
   const [messages, setMessages] = useState<Message[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [sessions, setSessions] = useState<ChatSession[]>([]);
+  const [isInitialLoading, setIsInitialLoading] = useState(true);
+
+  // Initial loader effect
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setIsInitialLoading(false);
+    }, 2200); // 2.2s to allow exit animation overlap
+    return () => clearTimeout(timer);
+  }, []);
   
   // Persistent User ID for anonymous session separation
   const [userId] = useState(() => {
@@ -192,6 +203,10 @@ export default function App() {
 
   return (
     <div className="flex h-screen bg-background text-foreground overflow-hidden font-sans">
+      <AnimatePresence>
+        {isInitialLoading && <InitialLoader />}
+      </AnimatePresence>
+
       {/* Sidebar */}
       <Sidebar 
         isOpen={isSidebarOpen} 
